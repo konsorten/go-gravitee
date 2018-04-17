@@ -45,17 +45,13 @@ type APIRequest struct {
 
 // RequestError contains information about any error we get from a request.
 type RequestError struct {
-	Message     string `json:"message,omitempty"`
-	Description string `json:"description,omitempty"`
+	Message    string `json:"message,omitempty"`
+	HttpStatus int    `json:"http_status,omitempty"`
 }
 
 // Error returns the error message.
 func (r *RequestError) Error() error {
-	if r.Description != "" {
-		return fmt.Errorf("%v failed: %v", r.Description, r.Message)
-	}
-
-	return fmt.Errorf("%v", r.Message)
+	return fmt.Errorf("%v (HTTP: %v)", r.Message, r.HttpStatus)
 }
 
 // Connect sets up our connection to the Zevenet system.
