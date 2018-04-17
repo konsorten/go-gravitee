@@ -60,8 +60,8 @@ type ApiMetadata struct {
 	Name         string            `json:"name"`
 	Format       ApiMetadataFormat `json:"format"`
 	LocalValue   string            `json:"value"`
-	DefaultValue string            `json:"defaultValue"`
-	ApiID        string            `json:"apiId"`
+	DefaultValue string            `json:"defaultValue,omitempty"`
+	ApiID        string            `json:"apiId,omitempty"`
 }
 
 func (ai ApiMetadata) Value() string {
@@ -70,6 +70,10 @@ func (ai ApiMetadata) Value() string {
 	}
 
 	return ai.DefaultValue
+}
+
+func (ai ApiMetadata) IsLocal() bool {
+	return ai.ApiID != ""
 }
 
 func (ai ApiMetadata) String() string {
@@ -186,4 +190,64 @@ func (s *GraviteeSession) GetAPIMetadata(id string) ([]ApiMetadata, error) {
 	}
 
 	return *result, nil
+}
+
+// GetLocalAPIMetadata retrieves a local metadata entry on an API registered in Gravitee.
+func (s *GraviteeSession) GetLocalAPIMetadata(id string, metadataKey string) (*ApiMetadata, error) {
+	var result *ApiMetadata
+
+	err := s.getForEntity(&result, "apis", id, "metadata", metadataKey)
+	if err != nil {
+		switch v := err.(type) {
+		case RequestError:
+			if v.HttpStatus == 404 {
+				return nil, nil
+			}
+		}
+
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// UnsetLocalAPIMetadata removes a local metadata entry on an API registered in Gravitee.
+func (s *GraviteeSession) UnsetLocalAPIMetadata(id string, metadataKey string) error {
+	err := s.delete("apis", id, "metadata", metadataKey)
+	if err != nil {
+		switch v := err.(type) {
+		case RequestError:
+			if v.HttpStatus == 404 {
+				return nil
+			}
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// SetLocalAPIMetadata updates or creates a local metadata entry on an API registered in Gravitee.
+func (s *GraviteeSession) SetLocalAPIMetadata(id string, metadataKey string, value string, format ApiMetadataFormat) error {
+	req := ApiMetadata{
+		Key:        metadataKey,
+		Name:       metadataKey,
+		LocalValue: value,
+		Format:     format,
+	}
+
+	err := s.put(req, "apis", id, "metadata", metadataKey)
+	if err != nil {
+		switch v := err.(type) {
+		case RequestError:
+			if v.HttpStatus == 404 {
+				return nil
+			}
+		}
+
+		return err
+	}
+
+	return nil
 }
