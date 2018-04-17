@@ -113,3 +113,56 @@ func TestGetLocalAPIMetadataNotFound(t *testing.T) {
 		t.Fatal("Expected not found")
 	}
 }
+
+func TestUnsetLocalAPIMetadataNotFound(t *testing.T) {
+	session := createTestSession(t)
+
+	apis, err := session.GetAPIsByLabel("gravitee-go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%v\n", apis)
+
+	err = session.UnsetLocalAPIMetadata(apis[0].ID, "d0esn0tex1st")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeployAPI(t *testing.T) {
+	session := createTestSession(t)
+
+	apis, err := session.GetAPIsByLabel("gravitee-go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%v\n", apis)
+
+	err = session.DeployAPI(apis[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAddOrUpdateEndpoints(t *testing.T) {
+	session := createTestSession(t)
+
+	apis, err := session.GetAPIsByLabel("gravitee-go")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%v\n", apis)
+
+	ep := []ApiDetailsEndpoint{
+		MakeApiDetailsEndpoint("default", "http://klihgukjdvbfjgbjhdfb"),
+		MakeApiDetailsEndpoint("default2", "http://skjfgjshdfshjdgfjhsgdhj"),
+	}
+
+	err = session.AddOrUpdateEndpoints(apis[0].ID, ep, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

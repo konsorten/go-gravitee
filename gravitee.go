@@ -180,10 +180,14 @@ func (s *GraviteeSession) put(body interface{}, path ...string) error {
 		return err
 	}
 
+	return s.putRaw(marshalJSON, path...)
+}
+
+func (s *GraviteeSession) putRaw(body []byte, path ...string) error {
 	req := &APIRequest{
 		Method:      "put",
 		URL:         s.iControlPath(path),
-		Body:        strings.TrimRight(string(marshalJSON), "\n"),
+		Body:        strings.TrimRight(string(body), "\n"),
 		ContentType: "application/json",
 	}
 
@@ -195,16 +199,8 @@ func (s *GraviteeSession) put(body interface{}, path ...string) error {
 //passed entity will be untouched and false will be returned as the second parameter.
 //You can use this to distinguish between a missing entity or an actual error.
 func (s *GraviteeSession) getForEntity(e interface{}, path ...string) error {
-	req := &APIRequest{
-		Method:      "get",
-		URL:         s.iControlPath(path),
-		ContentType: "application/json",
-	}
-
-	resp, err := s.apiCall(req)
+	resp, err := s.getRaw(path...)
 	if err != nil {
-		var reqError RequestError
-		json.Unmarshal(resp, &reqError)
 		return err
 	}
 
@@ -214,6 +210,16 @@ func (s *GraviteeSession) getForEntity(e interface{}, path ...string) error {
 	}
 
 	return nil
+}
+
+func (s *GraviteeSession) getRaw(path ...string) ([]byte, error) {
+	req := &APIRequest{
+		Method:      "get",
+		URL:         s.iControlPath(path),
+		ContentType: "application/json",
+	}
+
+	return s.apiCall(req)
 }
 
 // checkError handles any errors we get from our API requests. It returns either the

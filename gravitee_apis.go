@@ -3,6 +3,8 @@ package gravitee
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Jeffail/gabs"
 )
 
 // ApiState is an enumeration of possible *State* to be used for an API.
@@ -80,27 +82,66 @@ func (ai ApiMetadata) String() string {
 	return fmt.Sprintf("%v = %v [%v]", ai.Name, ai.Value(), ai.Format)
 }
 
-type ApiDetailsEndpoint struct {
-	Name     string `json:"name"`
-	Target   string `json:"target"`
-	Weight   int    `json:"weight"`
-	IsBackup bool   `json:"backup"`
-	Type     string `json:"type"`
+type ApiDetailsEndpointHttp struct {
+	ConnectTimeoutMS         int  `json:"connectTimeout"`
+	IdleTimeoutMS            int  `json:"idleTimeout"`
+	ReadTimeoutMS            int  `json:"readTimeout"`
+	KeepAlive                bool `json:"keepAlive"`
+	Pipelining               bool `json:"pipelining"`
+	MaxConcurrentConnections int  `json:"maxConcurrentConnections"`
+	UseCompression           bool `json:"useCompression"`
+	FollowRedirects          bool `json:"followRedirects"`
+}
 
-	Http struct {
-		ConnectTimeoutMS         int  `json:"connectTimeout"`
-		IdleTimeoutMS            int  `json:"idleTimeout"`
-		ReadTimeoutMS            int  `json:"readTimeout"`
-		KeepAlive                bool `json:"keepAlive"`
-		Pipelining               bool `json:"pipelining"`
-		MaxConcurrentConnections int  `json:"maxConcurrentConnections"`
-		UseCompression           bool `json:"useCompression"`
-		FollowRedirects          bool `json:"followRedirects"`
-	} `json:"http"`
+type ApiDetailsEndpointSSL struct {
+	IsEnabled                  bool   `json:"enabled"`
+	TrustAllCertificates       bool   `json:"trustAll"`
+	VerifyHostnameInPublicCert bool   `json:"hostnameVerifier"`
+	PublicCertPEM              string `json:"pem"`
+}
+
+type ApiDetailsEndpoint struct {
+	Name     string                 `json:"name"`
+	Target   string                 `json:"target"`
+	Weight   int                    `json:"weight"`
+	IsBackup bool                   `json:"backup"`
+	Type     string                 `json:"type"`
+	Http     ApiDetailsEndpointHttp `json:"http"`
+	SSL      ApiDetailsEndpointSSL  `json:"ssl"`
 }
 
 func (ai ApiDetailsEndpoint) String() string {
 	return fmt.Sprintf("%v (%v, %v)", ai.Name, ai.Target, ai.Type)
+}
+
+func MakeApiDetailsEndpoint(name, target string) ApiDetailsEndpoint {
+	return ApiDetailsEndpoint{
+		Name:   name,
+		Target: target,
+		Weight: 1,
+		Type:   "HTTP",
+
+		Http: ApiDetailsEndpointHttp{
+			ConnectTimeoutMS:         5000,
+			IdleTimeoutMS:            60000,
+			ReadTimeoutMS:            10000,
+			KeepAlive:                true,
+			Pipelining:               false,
+			MaxConcurrentConnections: 100,
+			UseCompression:           true,
+			FollowRedirects:          false,
+		},
+
+		SSL: ApiDetailsEndpointSSL{
+			IsEnabled:                  false,
+			TrustAllCertificates:       true,
+			VerifyHostnameInPublicCert: false,
+			PublicCertPEM:              "",
+		},
+	}
+}
+
+type ApiDetailsPath struct {
 }
 
 type ApiDetails struct {
@@ -112,7 +153,7 @@ type ApiDetails struct {
 	State       ApiState      `json:"state"`
 	Tags        []string      `json:"tags"`
 	Labels      []string      `json:"labels"`
-	//Paths       []string      `json:"paths"`
+	//Paths       map[string]ApiDetailsPath `json:"paths"`
 	CreatedAt   int           `json:"created_at"`
 	UpdatedAdd  int           `json:"updated_at"`
 	DeployedAt  int           `json:"deployed_at"`
@@ -128,6 +169,16 @@ type ApiDetails struct {
 		LoadBalancing struct {
 			Type string `json:"type"`
 		} `json:"load_balancing"`
+
+		CORS struct {
+			IsEnabled        bool     `json:"enabled"`
+			AllowCredentials bool     `json:"allowCredentials"`
+			AllowHeaders     []string `json:"allowHeaders"`
+			AllowMethods     []string `json:"allowMethods"`
+			AllowOrigin      []string `json:"allowOrigin"`
+			ExposeHeaders    []string `json:"exposeHeaders"`
+			MaxAgeSeconds    int      `json:"maxAge"`
+		} `json:"cors"`
 	} `json:"proxy"`
 }
 
@@ -178,6 +229,79 @@ func (s *GraviteeSession) GetAPI(id string) (*ApiDetails, error) {
 	}
 
 	return result, nil
+}
+
+// AddOrUpdateEndpoint adds or updates an endpoint to an API registered in Gravitee.
+func (s *GraviteeSession) AddOrUpdateEndpoints(id string, endpoints []ApiDetailsEndpoint, replaceAll bool) error {
+	res, err := s.getRaw("apis", id)
+	if err != nil {
+		return err
+	}
+
+	json, err := gabs.ParseJSON(res)
+	if err != nil {
+		return err
+	}
+
+	if replaceAll {
+		json.Array("proxy", "endpoints")
+	}
+
+	for _, ep := range endpoints {
+		err := s.addOrUpdateEndpointSingle(json, ep)
+		if err != nil {
+			return err
+		}
+	}
+
+	// clean-up (PUT request will fail if the following properties are set)
+	json.Delete("context_path")
+	json.Delete("created_at")
+	json.Delete("deployed_at")
+	json.Delete("id")
+	json.Delete("owner")
+	json.Delete("picture_url")
+	json.Delete("state")
+	json.Delete("updated_at")
+
+	return s.putRaw(json.Bytes(), "apis", id)
+}
+
+// AddOrUpdateEndpoint adds or updates an endpoint to an API registered in Gravitee.
+func (s *GraviteeSession) addOrUpdateEndpointSingle(json *gabs.Container, endpoint ApiDetailsEndpoint) error {
+	endpointsArray := json.Search("proxy", "endpoints")
+
+	// update existing endpoint
+	epcount, err := endpointsArray.ArrayCount()
+	if err != nil {
+		return err
+	}
+
+	updated := false
+
+	for i := 0; i < epcount; i++ {
+		ep, err := endpointsArray.ArrayElement(i)
+		if err != nil {
+			return err
+		}
+
+		if endpoint.Name == ep.Search("name").Data() {
+			_, err = endpointsArray.SetIndex(endpoint, i)
+
+			updated = true
+			break
+		}
+	}
+
+	// add new endpoint
+	if !updated {
+		err = json.ArrayAppend(endpoint, "proxy", "endpoints") // does not work on endpointsArray
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // GetAPIMetadata retrieves the metadata on an API registered in Gravitee.
@@ -246,6 +370,16 @@ func (s *GraviteeSession) SetLocalAPIMetadata(id string, metadataKey string, val
 			}
 		}
 
+		return err
+	}
+
+	return nil
+}
+
+// DeployAPI deploys the current configuration of the API to the gateway instances.
+func (s *GraviteeSession) DeployAPI(id string) error {
+	err := s.post("", "apis", id, "deploy")
+	if err != nil {
 		return err
 	}
 
