@@ -42,6 +42,39 @@ func (ai ApiInfo) String() string {
 	return fmt.Sprintf("%v (%v, %v)", ai.Name, ai.ID, ai.State)
 }
 
+// ApiMetadataFormat is an enumeration of possible *Format* to be used for an API metdata entry.
+type ApiMetadataFormat string
+
+const (
+	ApiMetadataFormat_String  ApiMetadataFormat = "string"
+	ApiMetadataFormat_Numeric ApiMetadataFormat = "numeric"
+	ApiMetadataFormat_Boolean ApiMetadataFormat = "boolean"
+	ApiMetadataFormat_Date    ApiMetadataFormat = "date"
+	ApiMetadataFormat_Mail    ApiMetadataFormat = "mail"
+	ApiMetadataFormat_URL     ApiMetadataFormat = "url"
+)
+
+type ApiMetadata struct {
+	Key          string            `json:"key"`
+	Name         string            `json:"name"`
+	Format       ApiMetadataFormat `json:"format"`
+	LocalValue   string            `json:"value"`
+	DefaultValue string            `json:"defaultValue"`
+	ApiID        string            `json:"apiId"`
+}
+
+func (ai ApiMetadata) Value() string {
+	if ai.LocalValue != "" {
+		return ai.LocalValue
+	}
+
+	return ai.DefaultValue
+}
+
+func (ai ApiMetadata) String() string {
+	return fmt.Sprintf("%v = %v [%v]", ai.Name, ai.Value(), ai.Format)
+}
+
 type ApiDetailsEndpoint struct {
 	Name     string `json:"name"`
 	Target   string `json:"target"`
@@ -102,7 +135,6 @@ func (s *GraviteeSession) GetAllAPIs() ([]ApiInfo, error) {
 	var result *[]ApiInfo
 
 	err := s.getForEntity(&result, "apis")
-
 	if err != nil {
 		return nil, err
 	}
@@ -115,10 +147,21 @@ func (s *GraviteeSession) GetAPI(id string) (*ApiDetails, error) {
 	var result *ApiDetails
 
 	err := s.getForEntity(&result, "apis", id)
-
 	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
+}
+
+// GetAPIMetadata retrieves the metadata on an API registered in Gravitee.
+func (s *GraviteeSession) GetAPIMetadata(id string) ([]ApiMetadata, error) {
+	var result *[]ApiMetadata
+
+	err := s.getForEntity(&result, "apis", id, "metadata")
+	if err != nil {
+		return nil, err
+	}
+
+	return *result, nil
 }

@@ -21,4 +21,11 @@ func TestGetAPI(t *testing.T) {
 	}
 
 	fmt.Printf("%v\n", api)
+
+	meta, err := session.GetAPIMetadata(apis[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%v\n", meta)
 }
