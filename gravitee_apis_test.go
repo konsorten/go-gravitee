@@ -29,3 +29,14 @@ func TestGetAPI(t *testing.T) {
 
 	fmt.Printf("%v\n", meta)
 }
+
+func TestGetAPIsByLabel(t *testing.T) {
+	session := createTestSession(t)
+
+	apis, err := session.GetAPIsByLabel("gotest")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("%v\n", apis)
+}

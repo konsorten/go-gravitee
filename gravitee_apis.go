@@ -2,6 +2,7 @@ package gravitee
 
 import (
 	"fmt"
+	"strings"
 )
 
 // ApiState is an enumeration of possible *State* to be used for an API.
@@ -140,6 +141,27 @@ func (s *GraviteeSession) GetAllAPIs() ([]ApiInfo, error) {
 	}
 
 	return *result, nil
+}
+
+// GetAPIsByLabel retrieves a list of all APIs registered in Gravitee.
+func (s *GraviteeSession) GetAPIsByLabel(label string) ([]ApiInfo, error) {
+	result, err := s.GetAllAPIs()
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]ApiInfo, 0)
+
+	for _, ai := range result {
+		for _, lbl := range ai.Labels {
+			if strings.EqualFold(lbl, label) {
+				filtered = append(filtered, ai)
+				break
+			}
+		}
+	}
+
+	return filtered, nil
 }
 
 // GetAPI retrieves details on an API registered in Gravitee.
