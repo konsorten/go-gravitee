@@ -231,7 +231,7 @@ func (s *GraviteeSession) GetAPI(id string) (*ApiDetails, error) {
 	return result, nil
 }
 
-// AddOrUpdateEndpoint adds or updates an endpoint to an API registered in Gravitee.
+// AddOrUpdateEndpoints adds or updates an endpoint to an API registered in Gravitee.
 func (s *GraviteeSession) AddOrUpdateEndpoints(id string, endpoints []ApiDetailsEndpoint, replaceAll bool) error {
 	res, err := s.getRaw("apis", id)
 	if err != nil {
